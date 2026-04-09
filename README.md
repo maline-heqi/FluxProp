@@ -48,7 +48,7 @@ To maintain stability across the non-linear Jacobian flow, FluxProp utilizes a s
 
 ---
 
-# FluxProp: 有状态液态马尔可夫语言模型
+# FluxProp: 有状态的液态马尔可夫语言模型
 
 FluxProp 是一种极具野心的实验性语言模型架构。它通过将连续时间动力学深度整合进空间残差框架，打破了 Transformer 与 RNN 之间的界限。
 
