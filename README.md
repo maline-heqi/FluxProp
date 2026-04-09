@@ -9,7 +9,7 @@ FluxProp is grounded in a rigorous joint spatio-temporal Jacobian analysis of co
 #### 1.1 Temporal Liquid Update & Spatial Residuals (ReZero Optimized)
 The evolution of the hidden state is governed by a nonlinear ODE. Discretized via the Forward Euler method, the temporal update for layer l is:
 
-h_t = (1 - sigmoid(alpha)) * h_{t-1} + tanh(W * h_{t-1} + U * x_t + b)
+$$h_t = (1 - sigmoid(alpha)) * h_{t-1} + tanh(W * h_{t-1} + U * x_t + b)$$
 
 In this implementation, alpha is a learnable vector parameter, allowing for channel-wise independent decay rates. To guarantee a lossless gradient highway across spatial depth L, we incorporate a ReZero-inspired spatial residual correction:
 
