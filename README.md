@@ -35,7 +35,7 @@ A key contribution of FluxProp is proving that routing in the forward pass intri
 
 The gradient with respect to the pre-routed state rigorously converges to:
 
-$$dL/dh_t = M_t^T * (dL/d_h_tilde_t) + Jacobian_Softmax(h_t)^T * (dL/d_h_tilde_t)$$
+$$\frac{\partial \mathcal{L}}{\partial h_t} = M_t^\top \left( \frac{\partial \mathcal{L}}{\partial \tilde{h}_t} \right) + \text{Jacobian}_{\text{Softmax}}(h_t)^\top \left( \frac{\partial \mathcal{L}}{\partial \tilde{h}_t} \right)$$
 
 The dominance of the $$M_t^T$$ term demonstrates that the Markovian transition probabilities naturally re-weight the gradient flow, rendering heuristic backward hooks obsolete.
 
