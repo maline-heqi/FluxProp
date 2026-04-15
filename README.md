@@ -1,5 +1,3 @@
-为您整理了排版精美的中英双语 GitHub README 模板。我将所有内容包裹在 Markdown 代码块中，您只需点击右上角的“复制”按钮，即可直接粘贴到您的项目中：
-
 ````markdown
 # FluxProp: Stateful-Liquid-Markovian-Language-Model
 
