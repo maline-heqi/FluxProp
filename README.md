@@ -1,5 +1,5 @@
 ````markdown
-# FluxProp: Stateful-Liquid-Markovian-Language-Model
+# FluxProp: A continuous-time Liquid Neural Network (LNN) for language modeling, featuring mathematically proven emergent Markovian gradients. No backward hooks required.
 
 FluxProp is an experimental, highly ambitious language model architecture. It breaks the traditional dichotomy between Transformers and standard RNNs by deeply integrating continuous-time dynamics into a spatial residual framework.
 
