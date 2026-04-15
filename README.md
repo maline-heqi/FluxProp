@@ -194,6 +194,3 @@ $$ \nabla_{\boldsymbol{h}_t} \mathcal{L} = \underbrace{\boldsymbol{W}_V^\top \bo
   * **全量融合：** 最后以极低学习率全局解冻物理参数，冲击全局联合 Jacobian 流的动态共振优化。
 
 <!-- end list -->
-
-```
-```
