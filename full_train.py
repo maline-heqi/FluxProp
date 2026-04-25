@@ -18,7 +18,7 @@ HIDDEN_DIM = 1024
 RANK = 128
 # 🚨 注意：全量解冻显存占用极高。如果 24G 显存 OOM，请将 BATCH_SIZE 降至 128 或 192
 BATCH_SIZE = 256  
-# 🔴 关键：学习率必须极低，用于“文火慢炖”已有的层级特征
+# 🔴 关键：学习率必须极低，用于"文火慢炖"已有的层级特征
 BASE_LR = 3e-5  
 WARMUP_STEPS = 200
 TOTAL_STEPS = 10000 
@@ -88,6 +88,8 @@ def train_full():
         sd = ckpt.get("model_state", ckpt)
         sd = {k.replace("_orig_mod.", "").replace("module.", ""): v for k, v in sd.items()}
         model.load_state_dict(sd)
+        # [FIX] 加载完毕后强制重建 weight tying，防止 lm_head 与 embedding 解绑
+        model.lm_head.weight = model.embedding.weight
     else:
         raise FileNotFoundError("必须先完成 Layer 07 的训练才能开启全量调优！")
 

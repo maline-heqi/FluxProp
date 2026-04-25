@@ -37,7 +37,7 @@ class CharTokenizer:
     def vocab_size(self):
         return len(self.chars)
 
-# 🛠️ 修复：真正的连续状态流数据迭代器
+# 真正的连续状态流数据迭代器
 class StatefulDataLoader:
     def __init__(self, data_tensor, batch_size, seq_len):
         self.batch_size = batch_size
@@ -96,15 +96,17 @@ def train():
             state_dict = torch.load(prev_ckpt)["model_state"]
             state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
             model.load_state_dict(state_dict, strict=False)
-            print(f"✅ 已继承 Layer {args.layer-1} 的预训练知识")
+            # [FIX] 加载完毕后强制重建 weight tying，防止 lm_head 与 embedding 解绑
+            model.lm_head.weight = model.embedding.weight
+            print(f"✅ 已继承 Layer {args.layer-1} 的预训练知识 (weight tying 已重建)")
             
-    # 🛠️ 修复：必须先冻结物理层，然后再进行 compile，否则冻结不生效
+    # 必须先冻结物理层，然后再进行 compile，否则冻结不生效
     freeze_all_layers_except(model, args.layer)
 
     print("🔥 正在使用 torch.compile 对模型进行底层计算图融合优化...")
     #model = torch.compile(model)
 
-    # 🛠️ 修复：精细化的优化器策略，保护 LNN 动力学参数不被 Weight Decay 归零
+    # 精细化的优化器策略，保护 LNN 动力学参数不被 Weight Decay 归零
     decay, no_decay = [], []
     for name, param in model.named_parameters():
         if not param.requires_grad:
@@ -142,7 +144,7 @@ def train():
             for x, y in loader:
                 x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
                 
-                # 🛠️ 修复：截断梯度，防止反向传播穿透到上一个 Batch，导致 OOM
+                # 截断梯度，防止反向传播穿透到上一个 Batch，导致 OOM
                 if h_states is not None:
                     h_states = [h.detach() for h in h_states]
 
@@ -152,6 +154,8 @@ def train():
                     loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
                 
                 scaler.scale(loss).backward()
+                # [FIX] 关键修复：必须先 unscale 再裁剪，否则 max_norm=1.0 是在数千倍放大后的梯度上裁剪，等于无效
+                scaler.unscale_(optimizer)
                 clip_grad_norm_(model.parameters(), max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()

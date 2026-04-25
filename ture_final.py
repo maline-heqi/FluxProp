@@ -18,11 +18,14 @@ HIDDEN_DIM = 1024
 RANK = 128
 # 🚨 注意：全量解冻显存占用极高。如果 24G 显存 OOM，请将 BATCH_SIZE 降至 128 或 192
 BATCH_SIZE = 256  
-# 🔴 关键：学习率必须极低，用于“文火慢炖”已有的层级特征
+# 🔴 关键：学习率必须极低，用于"文火慢炖"已有的层级特征
 BASE_LR = 1e-5  
 WARMUP_STEPS = 200
 TOTAL_STEPS = 10000 
 WEIGHT_DECAY = 0.05
+
+# [FIX] 路径统一为小写，避免大小写不一致导致出现两个目录
+CKPT_DIR = "checkpoints/ture_full_final"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_float32_matmul_precision('high')
@@ -76,9 +79,9 @@ def train_full():
     # 编码 sft 数据 (CharTokenizer里的 if ch in self.stoi 会自动过滤掉极端罕见的生僻符号)
     encoded_sft = tokenizer.encode(sft_text)
     data = torch.tensor(encoded_sft, dtype=torch.long)
-    loader = StatefulDataLoader(data, BATCH_SIZE, SEQ_LEN)
     
     print(f"📊 SFT Token总数: {len(data)}, 词表大小: {tokenizer.vocab_size()}")
+    # [FIX] 删掉重复的 loader 构造，只构造一次
     loader = StatefulDataLoader(data, BATCH_SIZE, SEQ_LEN)
 
     # 2. 初始化全量模型 (8层)
@@ -91,17 +94,19 @@ def train_full():
         device=DEVICE
     ).to(DEVICE)
 
-    # 3. 加载 Layer 07 的最终成果
+    # 3. 加载全量预训练的最终成果
     ckpt_path = "checkpoints/full_final/absolute_final.pt"
     if os.path.exists(ckpt_path):
-        print(f"📦 正在加载 Layer 07 基础权重: {ckpt_path}")
+        print(f"📦 正在加载全量预训练权重: {ckpt_path}")
         ckpt = torch.load(ckpt_path, map_location=DEVICE)
         # 兼容性处理：移除可能存在的分布式/编译前缀
         sd = ckpt.get("model_state", ckpt)
         sd = {k.replace("_orig_mod.", "").replace("module.", ""): v for k, v in sd.items()}
         model.load_state_dict(sd)
+        # [FIX] 加载完毕后强制重建 weight tying，防止 lm_head 与 embedding 解绑
+        model.lm_head.weight = model.embedding.weight
     else:
-        raise FileNotFoundError("必须先完成 Layer 07 的训练才能开启全量调优！")
+        raise FileNotFoundError("必须先完成全量预训练 (full_train.py) 才能开启 SFT 微调！")
 
     # 🔥 核心：解冻全部参数
     for param in model.parameters():
@@ -111,7 +116,7 @@ def train_full():
     # 4. 优化器配置
     optimizer = torch.optim.AdamW(model.parameters(), lr=BASE_LR, weight_decay=WEIGHT_DECAY)
     scaler = GradScaler()
-    writer = SummaryWriter("runs/FluxProp_Full_V1")
+    writer = SummaryWriter("runs/FluxProp_SFT_V1")
 
     model.train()
     step = 0
@@ -119,7 +124,7 @@ def train_full():
     start_time = time.time()
 
     print(f"🚀 ===================================================")
-    print(f"🚀 终章开启：全量全局微调模式")
+    print(f"🚀 终章开启：SFT 指令微调阶段")
     print(f"🚀 初始 Loss 锚点: ~1.70 | 目标: 冲击 1.5x")
     print(f"🚀 ===================================================")
 
@@ -157,12 +162,13 @@ def train_full():
                     dt = time.time() - start_time
                     tok_per_sec = (10 * BATCH_SIZE * SEQ_LEN) / dt
                     print(f"Step {step:05d} | Loss: {loss.item():.4f} | LR: {lr:.2e} | ⚡ {tok_per_sec:,.0f} tok/s")
-                    writer.add_scalar("Full/Loss", loss.item(), step)
-                    writer.add_scalar("Full/LR", lr, step)
+                    writer.add_scalar("SFT/Loss", loss.item(), step)
+                    writer.add_scalar("SFT/LR", lr, step)
                     start_time = time.time()
 
                 if step % 1000 == 0:
-                    save_path = f"checkpoints/ture_full_final/step_{step}.pt"
+                    # [FIX] 周期性 checkpoint 与最终 checkpoint 路径统一为同一个目录（小写）
+                    save_path = os.path.join(CKPT_DIR, f"step_{step}.pt")
                     os.makedirs(os.path.dirname(save_path), exist_ok=True)
                     torch.save(model.state_dict(), save_path)
                     print(f"💾 已保存周期性权重: {save_path}")
@@ -172,10 +178,11 @@ def train_full():
     except KeyboardInterrupt:
         print("\n🛑 收到中断信号，正在安全撤离并保存权重...")
     
-    final_save = "checkpoints/Ture_full_final/ture_absolute_final.pt"
+    # [FIX] 最终 checkpoint 也存到统一目录，目录名统一为小写
+    final_save = os.path.join(CKPT_DIR, "ture_absolute_final.pt")
     os.makedirs(os.path.dirname(final_save), exist_ok=True)
     torch.save(model.state_dict(), final_save)
-    print(f"✅ 恭喜！全量模型已就绪: {final_save}")
+    print(f"✅ 恭喜！SFT 微调模型已就绪: {final_save}")
 
 if __name__ == "__main__":
     train_full()
